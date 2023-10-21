@@ -1,3 +1,3 @@
-module github.com/rafiathallah3/Gon
+module gon
 
 go 1.21.1

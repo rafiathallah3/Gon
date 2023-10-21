@@ -72,7 +72,7 @@ type Context struct {
 }
 
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	req.URL.Path = HilangkanSlahBerlebihan(req.URL.Path)
+	req.URL.Path = hilangkanSlahBerlebihan(req.URL.Path)
 
 	var foundRoute routeRules
 	var exists bool
@@ -125,7 +125,7 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	handler.ServeHTTP(w, req)
 }
 
-func (router *router) route(method httpMethod, pattern urlPattern, f HandlerFunc) {
+func (router *router) Route(method httpMethod, pattern urlPattern, f HandlerFunc) {
 	rules, exists := router.routes[pattern]
 	if !exists {
 		rules = routeRules{methods: make(map[httpMethod]http.Handler)}
@@ -150,7 +150,7 @@ func (router *router) route(method httpMethod, pattern urlPattern, f HandlerFunc
 
 		for _, v := range router.fungsi_middleware {
 			v(context)
-			if !context.ApakahNext() {
+			if !context.apakahNextFunc() {
 				break
 			}
 		}
@@ -159,15 +159,15 @@ func (router *router) route(method httpMethod, pattern urlPattern, f HandlerFunc
 	})
 }
 
-func (r *router) setFuncMap(funcMap FuncMap) {
+func (r *router) SetFuncMap(funcMap FuncMap) {
 	r.FuncMap = template.FuncMap(funcMap)
 }
 
-func (r *router) use(fungsi HandlerFunc) {
+func (r *router) Use(fungsi HandlerFunc) {
 	r.fungsi_middleware = append(r.fungsi_middleware, fungsi)
 }
 
-func (r *router) static(path urlPattern, file_path string) {
+func (r *router) Static(path urlPattern, file_path string) {
 	r.static_path = path
 
 	rules := routeRules{methods: make(map[httpMethod]http.Handler)}
@@ -175,12 +175,12 @@ func (r *router) static(path urlPattern, file_path string) {
 	rules.methods[GET] = http.StripPrefix(string(path), http.FileServer(http.Dir(file_path)))
 }
 
-func (r *router) run(port string) {
+func (r *router) Run(port string) {
 	fmt.Printf("Server run di: http://localhost%s\n", port)
 	http.ListenAndServe(fmt.Sprintf("%s", port), r)
 }
 
-func (context *Context) flash(text string) {
+func (context *Context) Flash(text string) {
 	str := context.dapatinFlash(false)
 	str = append(str, text)
 
@@ -223,7 +223,7 @@ func (context *Context) Next() {
 	context.apakahNext = true
 }
 
-func (context *Context) ApakahNext() bool {
+func (context *Context) apakahNextFunc() bool {
 	if context.apakahNext {
 		temp := context.apakahNext
 		context.apakahNext = false
@@ -233,15 +233,15 @@ func (context *Context) ApakahNext() bool {
 	return false
 }
 
-func (context *Context) render(isi string) {
+func (context *Context) Render(isi string) {
 	context.Response.Write([]byte(isi))
 }
 
-func (context *Context) redirect(url urlPattern) {
+func (context *Context) Redirect(url urlPattern) {
 	http.Redirect(context.Response, context.Request, string(url), http.StatusFound)
 }
 
-func (context *Context) render_template(nama_file string, data map[string]interface{}) {
+func (context *Context) Render_template(nama_file string, data map[string]interface{}) {
 	_, fileErr := os.ReadDir("./pages")
 	if fileErr != nil {
 		http.Error(context.Response, "No template to render", http.StatusInternalServerError)
@@ -302,7 +302,7 @@ func (context *Context) SetCookie(nama string, value string, setting SettingCook
 	http.SetCookie(context.Response, kue)
 }
 
-func (context *Context) getCookie(nama string) (*http.Cookie, error) {
+func (context *Context) GetCookie(nama string) (*http.Cookie, error) {
 	return context.Request.Cookie(nama)
 }
 
@@ -394,7 +394,7 @@ func notAllowed(w http.ResponseWriter, req *http.Request, r routeRules) {
 	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }
 
-func HilangkanSlahBerlebihan(url string) string {
+func hilangkanSlahBerlebihan(url string) string {
 	HasilList := []string{}
 
 	for _, v := range strings.Split(url, "/") {
