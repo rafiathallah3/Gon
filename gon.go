@@ -1,8 +1,11 @@
 package gon
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -25,7 +28,8 @@ import (
 7. FuncMap - sudah (14/10/2023 17:45)
 8. Flash - sudah (15/10/2023 10:36)
 9. Parameter di path - sudah (18/10/2023 17:40)
-10. Tambahin Auth
+10. Tambahin FavIcon
+11. Tambahin Auth
 */
 
 type httpMethod string
@@ -61,14 +65,17 @@ type router struct {
 	fungsi_middleware  []HandlerFunc
 	FuncMap            template.FuncMap
 	MaxMultipartMemory int64
+	SessionKey         string
+	SessionPermanent   bool
 }
 
 type Context struct {
 	Response     http.ResponseWriter
 	Request      *http.Request
-	SimpananData map[string]any
+	simpananData map[string]any
 	router       *router
 	apakahNext   bool
+	dataSession  map[string]interface{}
 }
 
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -137,7 +144,8 @@ func (router *router) Route(method httpMethod, pattern urlPattern, f HandlerFunc
 		context.Response = w
 		context.Request = r
 		context.router = router
-		context.SimpananData = map[string]any{}
+		context.simpananData = map[string]any{}
+		context.dataSession = context.dapatinSession()
 
 		if strings.Contains(string(pattern), ":") {
 			SplitURL := strings.Split(r.URL.Path, "/")
@@ -159,6 +167,12 @@ func (router *router) Route(method httpMethod, pattern urlPattern, f HandlerFunc
 	})
 }
 
+func (r *router) SetIcon(path_icon string) {
+	r.Route("GET", "/favicon.ico", func(ctx *Context) {
+		http.ServeFile(ctx.Response, ctx.Request, path_icon)
+	})
+}
+
 func (r *router) SetFuncMap(funcMap FuncMap) {
 	r.FuncMap = template.FuncMap(funcMap)
 }
@@ -176,8 +190,12 @@ func (r *router) Static(path urlPattern, file_path string) {
 }
 
 func (r *router) Run(port string) {
-	fmt.Printf("Server run di: http://localhost%s\n", port)
+	fmt.Printf("Server listening: http://localhost%s\n", port)
 	http.ListenAndServe(fmt.Sprintf("%s", port), r)
+}
+
+func (context *Context) Header(key string, val string) {
+	context.Response.Header().Set(key, val)
 }
 
 func (context *Context) Flash(text string) {
@@ -192,7 +210,7 @@ func (context *Context) Flash(text string) {
 }
 
 func (context *Context) dapatinFlash(PakeBatas bool) []string {
-	kue, err := context.Request.Cookie("flash")
+	kue, err := context.GetCookie("flash")
 
 	if err != nil {
 		return nil
@@ -307,18 +325,71 @@ func (context *Context) GetCookie(nama string) (*http.Cookie, error) {
 }
 
 func (context *Context) Set(namaVariable string, value any) {
-	context.SimpananData[namaVariable] = value
+	context.simpananData[namaVariable] = value
 }
 
 func (context *Context) Get(namaVariable string) (any, bool) {
-	return context.SimpananData[namaVariable], context.SimpananData[namaVariable] != nil
+	return context.simpananData[namaVariable], context.simpananData[namaVariable] != nil
+}
+
+func (context *Context) GetSession(namaVariable string) interface{} {
+	dataSession := context.dataSession
+	return dataSession[namaVariable]
+}
+
+func (context *Context) SetSession(namaVariable string, value string) error {
+	dataSession := context.dataSession
+	dataSession[namaVariable] = value
+
+	jsonString, err := json.Marshal(dataSession)
+
+	if err != nil {
+		return err
+	}
+
+	jsonStringSebagaiString := string(jsonString)
+	fmt.Printf(fmt.Sprintf("Variable: %s \n", namaVariable))
+	fmt.Println(jsonStringSebagaiString)
+	encryptJson, err := encrypt(jsonStringSebagaiString, context.router.SessionKey)
+
+	if err != nil {
+		return err
+	}
+
+	context.SetCookie("session", encryptJson, SettingCookie{
+		Expires: time.Now().Add(365 * 24 * time.Hour),
+	})
+
+	return nil
+}
+
+func (context *Context) dapatinSession() map[string]interface{} {
+	hasilData := map[string]interface{}{}
+
+	KueSession, err := context.GetCookie("session")
+
+	if err != nil {
+		return hasilData
+	}
+
+	DecryptKue, err := decrypt(KueSession.Value, context.router.SessionKey)
+
+	if err != nil {
+		return hasilData
+	}
+
+	if err := json.Unmarshal([]byte(DecryptKue), &hasilData); err != nil {
+		return hasilData
+	}
+
+	return hasilData
 }
 
 func (context *Context) Query(nama string) string {
 	return context.Request.URL.Query().Get(nama)
 }
 
-func (context *Context) PostData(nama string) string {
+func (context *Context) FormData(nama string) string {
 	return context.Request.FormValue(nama)
 }
 
@@ -413,6 +484,44 @@ func hilangkanSlahBerlebihan(url string) string {
 	return Karakter
 }
 
+var bytesCryption = []byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}
+
+func encrypt(text, MySecret string) (string, error) {
+	if MySecret == "" {
+		return "", errors.New("Session key is none")
+	}
+
+	block, err := aes.NewCipher([]byte(MySecret))
+	if err != nil {
+		return "", err
+	}
+
+	plainText := []byte(text)
+	cfb := cipher.NewCFBEncrypter(block, bytesCryption)
+	cipherText := make([]byte, len(plainText))
+	cfb.XORKeyStream(cipherText, plainText)
+
+	return encodeBase64(cipherText), nil
+}
+
+func decrypt(text, MySecret string) (string, error) {
+	block, err := aes.NewCipher([]byte(MySecret))
+	if err != nil {
+		return "", err
+	}
+
+	cipherText, err := decodeBase64(text)
+	if err != nil {
+		return "", err
+	}
+
+	cfb := cipher.NewCFBDecrypter(block, bytesCryption)
+	plainText := make([]byte, len(cipherText))
+	cfb.XORKeyStream(plainText, cipherText)
+
+	return string(plainText), nil
+}
+
 func encodeBase64(src []byte) string {
 	return base64.URLEncoding.EncodeToString(src)
 }
@@ -422,5 +531,5 @@ func decodeBase64(src string) ([]byte, error) {
 }
 
 func New() *router {
-	return &router{routes: make(map[urlPattern]routeRules)}
+	return &router{routes: make(map[urlPattern]routeRules), SessionKey: "", SessionPermanent: true}
 }
