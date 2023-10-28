@@ -2,9 +2,14 @@
 
 Gon is a simple web framework written in Golang, it has alot of feature including: Middleware, Flashing, Sessioning and much more!
 
+# Installation
+Install the package by executing this command
+```
+go get https://github.com/rafiathallah3/Gon
+```
 
-## Examples
-## Route Example
+# Examples
+### Route Example
 ```go
 package main
 
@@ -41,7 +46,7 @@ func main() {
 }
 ```
 
-## Function in Template
+### Function in Template
 ```go
 package main
 
@@ -71,7 +76,7 @@ Inside funcMap.html
 {{end}}
 ```
 
-## Adding a variable on Context
+### Adding a variable on Context
 ```go
 package main
 
@@ -99,7 +104,7 @@ func main() {
 }
 ```
 
-## Setting and Getting Cookie
+### Setting and Getting Cookie
 ```go
 package main
 
@@ -111,7 +116,7 @@ func main() {
     r.Route(gon.GET, "/cookie", func(context *gon.Context) {
         cookie, err := context.GetCookie("cookie")
 		context.SetCookie("cookie", "Nyum", gon.SettingCookie{})
-        
+
 		context.Render("cookie Update!")
 	})
 
@@ -119,7 +124,7 @@ func main() {
 }
 ```
 
-## Middleware
+### Middleware
 
 ```go
 package main
@@ -158,7 +163,7 @@ func main() {
 }
 ```
 
-## Rendering a template
+### Rendering a template
 To render a template, create a folder called "pages" in your project
 ```go
 package main
@@ -211,7 +216,7 @@ Homepage
 {{end}}
 ```
 
-## Session
+### Session
 ```go
 package main
 
@@ -243,7 +248,7 @@ func main() {
 }
 ```
 
-## Flashing
+### Flashing
 ```go
 package main
 
@@ -276,7 +281,7 @@ Inside flash.html
 {{end}}
 ```
 
-## Static 
+### Static 
 Static function needs 2 parameters that is, URL path and Folder path 
 ```go
 package main
@@ -292,7 +297,7 @@ func main() {
 }
 ```
 
-## Set Icon
+### Set Icon
 ```go
 package main
 
