@@ -348,17 +348,20 @@ func (context *Context) SetSession(namaVariable string, value string) error {
 	}
 
 	jsonStringSebagaiString := string(jsonString)
-	fmt.Printf(fmt.Sprintf("Variable: %s \n", namaVariable))
-	fmt.Println(jsonStringSebagaiString)
 	encryptJson, err := encrypt(jsonStringSebagaiString, context.router.SessionKey)
 
 	if err != nil {
 		return err
 	}
 
-	context.SetCookie("session", encryptJson, SettingCookie{
-		Expires: time.Now().Add(365 * 24 * time.Hour),
-	})
+	settingKue := SettingCookie{}
+	if context.router.SessionPermanent {
+		settingKue.Expires = time.Now().Add(365 * 24 * time.Hour)
+	} else {
+		settingKue.Expires = time.Now().Add(24 * time.Hour)
+	}
+
+	context.SetCookie("session", encryptJson, settingKue)
 
 	return nil
 }
