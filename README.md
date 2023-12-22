@@ -184,7 +184,7 @@ func main() {
 To also render a base template, create a folder called "templates", this will include the define function to the render template
 Base Template Example
 ```html
-{{define "base.html"}}
+{{define "base"}}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -205,7 +205,7 @@ Base Template Example
 
 Importing the base template
 ```html
-{{template "base.html"}}
+{{template "base" .}}
 
 {{define "title"}}
 Homepage
