@@ -36,6 +36,7 @@ type httpMethod string
 type urlPattern string
 type TipeDataJson map[string]any
 type FuncMap map[string]any
+type TempVar map[string]interface{}
 type HandlerFunc func(*Context)
 
 const (
@@ -84,16 +85,19 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var foundRoute routeRules
 	var exists bool
 
-	if strings.Contains(req.URL.Path, string(r.static_path)) {
+	if strings.Contains(string(r.static_path), req.URL.Path) {
 		foundRoute, exists = r.routes[r.static_path]
 	} else {
 		foundRoute, exists = r.routes[urlPattern(req.URL.Path)]
+		// fmt.Println("RUN SINI!", req.URL.Path)
+		// fmt.Println(foundRoute, exists)
 		/*
 			Masalah dalam pembuatan route parameter
 			1. /user/:nama/:data/:data1/:data2
 			2. /user/:nama/profile || /user/:nama/setting
 			3. /user/:nama/setting/:namasetting/test/:namaTest
 			4. /:terserah/data
+			(Sudah teratasi)
 		*/
 
 		// Kemungkinan ini adalah route paramter jadi kita cek semua router, memakai loop itu membuat perfomancenya lambat tapi tidak ada cara lain [17/10/2023 22:42]
@@ -112,16 +116,18 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	}
 
-	if strings.ReplaceAll(req.URL.Path, "/", "") == strings.ReplaceAll(string(r.static_path), "/", "") {
-		http.NotFound(w, req)
-		return
-	}
+	// Masih bingung ini untuk apa
+	// if strings.ReplaceAll(req.URL.Path, "/", "") == strings.ReplaceAll(string(r.static_path), "/", "") {
+	// 	http.NotFound(w, req)
+	// 	return
+	// }
 
 	if !exists {
 		http.NotFound(w, req)
 		return
 	}
 
+	// fmt.Println(req.Method)
 	handler, exists := foundRoute.methods[httpMethod(req.Method)]
 
 	if !exists {
@@ -259,7 +265,8 @@ func (context *Context) Redirect(url urlPattern) {
 	http.Redirect(context.Response, context.Request, string(url), http.StatusFound)
 }
 
-func (context *Context) Render_template(nama_file string, data map[string]interface{}) {
+// Rendering a template that comes with template
+func (context *Context) Render_template(file_name string, template_name any, data TempVar) {
 	_, fileErr := os.ReadDir("./pages")
 	if fileErr != nil {
 		http.Error(context.Response, "No template to render", http.StatusInternalServerError)
@@ -276,20 +283,22 @@ func (context *Context) Render_template(nama_file string, data map[string]interf
 	}
 
 	//Ide yang sangat jelek, supaya bisa include base.htmlnya harus tambahin "nama_file" di akhir files string list, supaya render html nama file tersebut.
-	files = append(files, path.Join("./pages", nama_file))
+	files = append(files, path.Join("./pages", file_name))
 
-	tmpl, err := template.New(nama_file).Funcs(context.router.FuncMap).ParseFiles(files...)
+	// tmpl, err := template.New(nama_file).Funcs(context.router.FuncMap).ParseFiles(files...)
+	tmpl, err := template.New(file_name).Funcs(context.router.FuncMap).ParseGlob("pages/*")
 
 	if err != nil {
 		http.Error(context.Response, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	strFlash := context.dapatinFlash(true)
 	data["flashed_messages"] = strFlash
 
-	err = tmpl.Execute(context.Response, data)
+	ExecuteErr := tmpl.Execute(context.Response, data)
 
-	if err != nil {
+	if ExecuteErr != nil {
 		http.Error(context.Response, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -318,6 +327,10 @@ func (context *Context) SetCookie(nama string, value string, setting SettingCook
 	kue.HttpOnly = setting.HttpOnly
 
 	http.SetCookie(context.Response, kue)
+}
+
+func (context *Context) Error(err string, code int) {
+	http.Error(context.Response, err, code)
 }
 
 func (context *Context) GetCookie(nama string) (*http.Cookie, error) {
@@ -534,5 +547,5 @@ func decodeBase64(src string) ([]byte, error) {
 }
 
 func New() *router {
-	return &router{routes: make(map[urlPattern]routeRules), SessionKey: "", SessionPermanent: true}
+	return &router{routes: make(map[urlPattern]routeRules), SessionKey: "", SessionPermanent: true, static_path: ""}
 }
